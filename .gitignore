@@ -13,7 +13,7 @@ env/
 
 # ML artifacts
 *.pkl
-*.joblib
+!Model/churn_model.pkl
 
 # Node
 node_modules/
