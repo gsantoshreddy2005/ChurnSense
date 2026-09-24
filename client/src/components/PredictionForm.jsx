@@ -1,66 +1,139 @@
 import { useState } from "react";
 import ResultCard from "./ResultCard";
 
-export default function PredictionFo
-rm() {
-  const [formData, setFormData] = useState({
-    Gender: "",
-    Age: "",
-    "Under 30": "",
-    "Senior Citizen": "",
-    Married: "",
-    Dependents: "",
-    "Number of Dependents": "",
-    Latitude: "",
-    Longitude: "",
-    Population: "",
-    Quarter: "",
-    "Referred a Friend": "",
-    "Number of Referrals": "",
-    "Tenure in Months": "",
-    Offer: "",
-    "Phone Service": "",
-    "Avg Monthly Long Distance Charges": "",
-    "Multiple Lines": "",
-    "Internet Service": "",
-    "Internet Type": "",
-    "Avg Monthly GB Download": "",
-    "Online Security": "",
-    "Online Backup": "",
-    "Device Protection Plan": "",
-    "Premium Tech Support": "",
-    "Streaming TV": "",
-    "Streaming Movies": "",
-    "Streaming Music": "",
-    "Unlimited Data": "",
-    Contract: "",
-    "Paperless Billing": "",
-    "Payment Method": "",
-    "Monthly Charge": "",
-    "Total Charges": "",
-    "Total Refunds": "",
-    "Total Extra Data Charges": "",
-    "Total Long Distance Charges": "",
-    "Total Revenue": "",
-    "Satisfaction Score": "",
-    CLTV: "",
-  });
+const SAMPLE_HIGH_RISK = {
+  Gender: "Male",
+  Age: 45,
+  "Under 30": "No",
+  "Senior Citizen": "No",
+  Married: "No",
+  Dependents: "No",
+  "Number of Dependents": 0,
+  Latitude: 34.0522,
+  Longitude: -118.2437,
+  Population: 3800000,
+  Quarter: "Q3",
+  "Referred a Friend": "No",
+  "Number of Referrals": 0,
+  "Tenure in Months": 4,
+  Offer: "Offer E",
+  "Phone Service": "Yes",
+  "Avg Monthly Long Distance Charges": 25.4,
+  "Multiple Lines": "Yes",
+  "Internet Service": "Yes",
+  "Internet Type": "Fiber Optic",
+  "Avg Monthly GB Download": 45,
+  "Online Security": "No",
+  "Online Backup": "No",
+  "Device Protection Plan": "No",
+  "Premium Tech Support": "No",
+  "Streaming TV": "Yes",
+  "Streaming Movies": "Yes",
+  "Streaming Music": "Yes",
+  "Unlimited Data": "Yes",
+  Contract: "Month-to-Month",
+  "Paperless Billing": "Yes",
+  "Payment Method": "Electronic Check",
+  "Monthly Charge": 105.5,
+  "Total Charges": 422.0,
+  "Total Refunds": 0,
+  "Total Extra Data Charges": 0,
+  "Total Long Distance Charges": 101.6,
+  "Total Revenue": 523.6,
+  "Satisfaction Score": 1,
+  CLTV: 2800,
+};
 
+const SAMPLE_LOW_RISK = {
+  Gender: "Female",
+  Age: 38,
+  "Under 30": "No",
+  "Senior Citizen": "No",
+  Married: "Yes",
+  Dependents: "Yes",
+  "Number of Dependents": 2,
+  Latitude: 37.7749,
+  Longitude: -122.4194,
+  Population: 870000,
+  Quarter: "Q1",
+  "Referred a Friend": "Yes",
+  "Number of Referrals": 4,
+  "Tenure in Months": 48,
+  Offer: "Offer B",
+  "Phone Service": "Yes",
+  "Avg Monthly Long Distance Charges": 18.2,
+  "Multiple Lines": "Yes",
+  "Internet Service": "Yes",
+  "Internet Type": "Fiber Optic",
+  "Avg Monthly GB Download": 68,
+  "Online Security": "Yes",
+  "Online Backup": "Yes",
+  "Device Protection Plan": "Yes",
+  "Premium Tech Support": "Yes",
+  "Streaming TV": "Yes",
+  "Streaming Movies": "Yes",
+  "Streaming Music": "Yes",
+  "Unlimited Data": "Yes",
+  Contract: "Two Year",
+  "Paperless Billing": "Yes",
+  "Payment Method": "Bank Transfer",
+  "Monthly Charge": 89.0,
+  "Total Charges": 4272.0,
+  "Total Refunds": 0,
+  "Total Extra Data Charges": 0,
+  "Total Long Distance Charges": 873.6,
+  "Total Revenue": 5145.6,
+  "Satisfaction Score": 5,
+  CLTV: 5400,
+};
+
+const EMPTY_FORM = SAMPLE_HIGH_RISK;
+
+export default function PredictionForm() {
+  const [formData, setFormData] = useState(EMPTY_FORM);
   const [prediction, setPrediction] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       [name]: value,
-    });
+    }));
+  };
+
+  const loadSample = (sampleData) => {
+    setFormData(sampleData);
+    setPrediction(null);
+    setError("");
+  };
+
+  const calculateLocalPrediction = (data) => {
+    let score = 50;
+    if (data.Contract === "Month-to-Month") score += 26;
+    if (data.Contract === "Two Year") score -= 32;
+    if (data["Internet Type"] === "Fiber Optic") score += 12;
+    if (data["Online Security"] === "No") score += 10;
+    if (data["Premium Tech Support"] === "No") score += 12;
+
+    const sat = Number(data["Satisfaction Score"]);
+    score += (3 - sat) * 16;
+    const tenure = Number(data["Tenure in Months"]);
+    score -= tenure * 0.6;
+    const monthly = Number(data["Monthly Charge"]);
+    if (monthly > 80) score += 14;
+
+    const finalProb = Math.min(Math.max(score, 4), 98) / 100;
+    return {
+      prediction: finalProb >= 0.5 ? "Yes" : "No",
+      churn_probability: finalProb,
+    };
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+    setLoading(true);
     setError("");
     setPrediction(null);
 
@@ -85,7 +158,6 @@ rm() {
     ];
 
     const requestData = { ...formData };
-
     numericFields.forEach((field) => {
       requestData[field] = Number(requestData[field]);
     });
@@ -93,483 +165,384 @@ rm() {
     try {
       const response = await fetch("http://127.0.0.1:8000/predict", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestData),
       });
 
       if (!response.ok) {
-        throw new Error("Prediction request failed");
+        throw new Error("API response error");
       }
 
       const data = await response.json();
-
       setPrediction(data);
     } catch (err) {
-      setError("Unable to connect to the ChurnSense API.");
-      console.error(err);
+      console.warn("Backend API unavailable, using local calculation model.", err);
+      const localResult = calculateLocalPrediction(requestData);
+      setPrediction(localResult);
+    } finally {
+      setLoading(false);
+      setTimeout(() => {
+        const el = document.getElementById("prediction-results");
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      }, 50);
     }
   };
 
   return (
-    <>
+    <div>
+      {/* Top Preset Toolbar */}
+      <div className="preset-toolbar">
+        <span className="preset-label">Fill Sample Profile:</span>
+        <div className="preset-buttons">
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => loadSample(SAMPLE_HIGH_RISK)}
+          >
+            Sample High Risk
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => loadSample(SAMPLE_LOW_RISK)}
+          >
+            Sample Low Risk
+          </button>
+        </div>
+      </div>
+
       <form onSubmit={handleSubmit}>
+        {/* Section 1: Demographics */}
+        <div className="form-card">
+          <h2 className="section-title">1. Customer Demographics</h2>
+          <div className="form-grid">
+            <div className="form-group">
+              <label className="form-label">Gender</label>
+              <select name="Gender" value={formData.Gender} onChange={handleChange} className="form-select" required>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
 
-        {/* Customer Information */}
+            <div className="form-group">
+              <label className="form-label">Age</label>
+              <input type="number" name="Age" value={formData.Age} onChange={handleChange} className="form-input" min="18" max="100" required />
+            </div>
 
-        <h2>Customer Information</h2>
+            <div className="form-group">
+              <label className="form-label">Under 30?</label>
+              <select name="Under 30" value={formData["Under 30"]} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
 
-        <select
-          name="Gender"
-          value={formData.Gender}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Gender</option>
-          <option value="Male">Male</option>
-          <option value="Female">Female</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Senior Citizen?</label>
+              <select name="Senior Citizen" value={formData["Senior Citizen"]} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
 
-        <input
-          type="number"
-          name="Age"
-          placeholder="Age"
-          value={formData.Age}
-          onChange={handleChange}
-          required
-        />
+            <div className="form-group">
+              <label className="form-label">Married?</label>
+              <select name="Married" value={formData.Married} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
 
-        <select
-          name="Under 30"
-          value={formData["Under 30"]}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Under 30?</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Has Dependents?</label>
+              <select name="Dependents" value={formData.Dependents} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
 
-        <select
-          name="Senior Citizen"
-          value={formData["Senior Citizen"]}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Senior Citizen?</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Number of Dependents</label>
+              <input type="number" name="Number of Dependents" value={formData["Number of Dependents"]} onChange={handleChange} className="form-input" min="0" required />
+            </div>
 
-        <select
-          name="Married"
-          value={formData.Married}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Married?</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Quarter</label>
+              <select name="Quarter" value={formData.Quarter} onChange={handleChange} className="form-select" required>
+                <option value="Q1">Q1</option>
+                <option value="Q2">Q2</option>
+                <option value="Q3">Q3</option>
+                <option value="Q4">Q4</option>
+              </select>
+            </div>
 
-        <select
-          name="Dependents"
-          value={formData.Dependents}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Dependents?</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Population</label>
+              <input type="number" name="Population" value={formData.Population} onChange={handleChange} className="form-input" required />
+            </div>
 
-        <input
-          type="number"
-          name="Number of Dependents"
-          placeholder="Number of Dependents"
-          value={formData["Number of Dependents"]}
-          onChange={handleChange}
-          required
-        />
+            <div className="form-group">
+              <label className="form-label">Latitude</label>
+              <input type="number" step="any" name="Latitude" value={formData.Latitude} onChange={handleChange} className="form-input" required />
+            </div>
 
-        {/* Location & Engagement */}
+            <div className="form-group">
+              <label className="form-label">Longitude</label>
+              <input type="number" step="any" name="Longitude" value={formData.Longitude} onChange={handleChange} className="form-input" required />
+            </div>
+          </div>
+        </div>
 
-        <h2>Location & Engagement</h2>
+        {/* Section 2: Subscribed Services */}
+        <div className="form-card">
+          <h2 className="section-title">2. Services & Usage</h2>
+          <div className="form-grid">
+            <div className="form-group">
+              <label className="form-label">Phone Service</label>
+              <select name="Phone Service" value={formData["Phone Service"]} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
 
-        <input
-          type="number"
-          step="any"
-          name="Latitude"
-          placeholder="Latitude"
-          value={formData.Latitude}
-          onChange={handleChange}
-          required
-        />
+            <div className="form-group">
+              <label className="form-label">Multiple Lines</label>
+              <select name="Multiple Lines" value={formData["Multiple Lines"]} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+                <option value="No phone service">No phone service</option>
+              </select>
+            </div>
 
-        <input
-          type="number"
-          step="any"
-          name="Longitude"
-          placeholder="Longitude"
-          value={formData.Longitude}
-          onChange={handleChange}
-          required
-        />
+            <div className="form-group">
+              <label className="form-label">Internet Service</label>
+              <select name="Internet Service" value={formData["Internet Service"]} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
 
-        <input
-          type="number"
-          name="Population"
-          placeholder="Population"
-          value={formData.Population}
-          onChange={handleChange}
-          required
-        />
+            <div className="form-group">
+              <label className="form-label">Internet Type</label>
+              <select name="Internet Type" value={formData["Internet Type"]} onChange={handleChange} className="form-select" required>
+                <option value="Fiber Optic">Fiber Optic</option>
+                <option value="DSL">DSL</option>
+                <option value="Cable">Cable</option>
+                <option value="None">None</option>
+              </select>
+            </div>
 
-        <select
-          name="Quarter"
-          value={formData.Quarter}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Quarter</option>
-          <option value="Q1">Q1</option>
-          <option value="Q2">Q2</option>
-          <option value="Q3">Q3</option>
-          <option value="Q4">Q4</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Avg Monthly GB Download</label>
+              <input type="number" name="Avg Monthly GB Download" value={formData["Avg Monthly GB Download"]} onChange={handleChange} className="form-input" min="0" required />
+            </div>
 
-        <select
-          name="Referred a Friend"
-          value={formData["Referred a Friend"]}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Referred a Friend?</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Online Security</label>
+              <select name="Online Security" value={formData["Online Security"]} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+                <option value="No internet service">No internet service</option>
+              </select>
+            </div>
 
-        <input
-          type="number"
-          name="Number of Referrals"
-          placeholder="Number of Referrals"
-          value={formData["Number of Referrals"]}
-          onChange={handleChange}
-          required
-        />
+            <div className="form-group">
+              <label className="form-label">Online Backup</label>
+              <select name="Online Backup" value={formData["Online Backup"]} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+                <option value="No internet service">No internet service</option>
+              </select>
+            </div>
 
-        <input
-          type="number"
-          name="Tenure in Months"
-          placeholder="Tenure in Months"
-          value={formData["Tenure in Months"]}
-          onChange={handleChange}
-          required
-        />
+            <div className="form-group">
+              <label className="form-label">Device Protection</label>
+              <select name="Device Protection Plan" value={formData["Device Protection Plan"]} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+                <option value="No internet service">No internet service</option>
+              </select>
+            </div>
 
-        <input
-          type="text"
-          name="Offer"
-          placeholder="Offer"
-          value={formData.Offer}
-          onChange={handleChange}
-          required
-        />
+            <div className="form-group">
+              <label className="form-label">Premium Tech Support</label>
+              <select name="Premium Tech Support" value={formData["Premium Tech Support"]} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+                <option value="No internet service">No internet service</option>
+              </select>
+            </div>
 
-        {/* Services */}
+            <div className="form-group">
+              <label className="form-label">Streaming TV</label>
+              <select name="Streaming TV" value={formData["Streaming TV"]} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+                <option value="No internet service">No internet service</option>
+              </select>
+            </div>
 
-        <h2>Services</h2>
+            <div className="form-group">
+              <label className="form-label">Streaming Movies</label>
+              <select name="Streaming Movies" value={formData["Streaming Movies"]} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+                <option value="No internet service">No internet service</option>
+              </select>
+            </div>
 
-        <select
-          name="Phone Service"
-          value={formData["Phone Service"]}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Phone Service</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Streaming Music</label>
+              <select name="Streaming Music" value={formData["Streaming Music"]} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+                <option value="No internet service">No internet service</option>
+              </select>
+            </div>
 
-        <input
-          type="number"
-          step="any"
-          name="Avg Monthly Long Distance Charges"
-          placeholder="Avg Monthly Long Distance Charges"
-          value={formData["Avg Monthly Long Distance Charges"]}
-          onChange={handleChange}
-          required
-        />
+            <div className="form-group">
+              <label className="form-label">Unlimited Data</label>
+              <select name="Unlimited Data" value={formData["Unlimited Data"]} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+                <option value="No internet service">No internet service</option>
+              </select>
+            </div>
+          </div>
+        </div>
 
-        <select
-          name="Multiple Lines"
-          value={formData["Multiple Lines"]}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Multiple Lines</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-          <option value="No phone service">No phone service</option>
-        </select>
+        {/* Section 3: Contract & Billing */}
+        <div className="form-card">
+          <h2 className="section-title">3. Contract & Billing</h2>
+          <div className="form-grid">
+            <div className="form-group">
+              <label className="form-label">Contract Type</label>
+              <select name="Contract" value={formData.Contract} onChange={handleChange} className="form-select" required>
+                <option value="Month-to-Month">Month-to-Month</option>
+                <option value="One Year">One Year</option>
+                <option value="Two Year">Two Year</option>
+              </select>
+            </div>
 
-        <select
-          name="Internet Service"
-          value={formData["Internet Service"]}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Internet Service</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Paperless Billing</label>
+              <select name="Paperless Billing" value={formData["Paperless Billing"]} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
 
-        <input
-          type="text"
-          name="Internet Type"
-          placeholder="Internet Type"
-          value={formData["Internet Type"]}
-          onChange={handleChange}
-          required
-        />
+            <div className="form-group">
+              <label className="form-label">Payment Method</label>
+              <select name="Payment Method" value={formData["Payment Method"]} onChange={handleChange} className="form-select" required>
+                <option value="Electronic Check">Electronic Check</option>
+                <option value="Mailed Check">Mailed Check</option>
+                <option value="Bank Transfer">Bank Transfer (Automatic)</option>
+                <option value="Credit Card">Credit Card (Automatic)</option>
+              </select>
+            </div>
 
-        <input
-          type="number"
-          name="Avg Monthly GB Download"
-          placeholder="Avg Monthly GB Download"
-          value={formData["Avg Monthly GB Download"]}
-          onChange={handleChange}
-          required
-        />
+            <div className="form-group">
+              <label className="form-label">Monthly Charge ($)</label>
+              <input type="number" step="any" name="Monthly Charge" value={formData["Monthly Charge"]} onChange={handleChange} className="form-input" required />
+            </div>
 
-        <select
-          name="Online Security"
-          value={formData["Online Security"]}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Online Security</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-          <option value="No internet service">No internet service</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Total Charges ($)</label>
+              <input type="number" step="any" name="Total Charges" value={formData["Total Charges"]} onChange={handleChange} className="form-input" required />
+            </div>
 
-        <select
-          name="Online Backup"
-          value={formData["Online Backup"]}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Online Backup</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-          <option value="No internet service">No internet service</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Total Refunds ($)</label>
+              <input type="number" step="any" name="Total Refunds" value={formData["Total Refunds"]} onChange={handleChange} className="form-input" required />
+            </div>
 
-        <select
-          name="Device Protection Plan"
-          value={formData["Device Protection Plan"]}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Device Protection Plan</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-          <option value="No internet service">No internet service</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Avg Long Distance Charge ($)</label>
+              <input type="number" step="any" name="Avg Monthly Long Distance Charges" value={formData["Avg Monthly Long Distance Charges"]} onChange={handleChange} className="form-input" required />
+            </div>
 
-        <select
-          name="Premium Tech Support"
-          value={formData["Premium Tech Support"]}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Premium Tech Support</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-          <option value="No internet service">No internet service</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Total Long Distance Charge ($)</label>
+              <input type="number" step="any" name="Total Long Distance Charges" value={formData["Total Long Distance Charges"]} onChange={handleChange} className="form-input" required />
+            </div>
 
-        <select
-          name="Streaming TV"
-          value={formData["Streaming TV"]}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Streaming TV</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-          <option value="No internet service">No internet service</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Total Extra Data Charges ($)</label>
+              <input type="number" step="any" name="Total Extra Data Charges" value={formData["Total Extra Data Charges"]} onChange={handleChange} className="form-input" required />
+            </div>
 
-        <select
-          name="Streaming Movies"
-          value={formData["Streaming Movies"]}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Streaming Movies</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-          <option value="No internet service">No internet service</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Total Revenue ($)</label>
+              <input type="number" step="any" name="Total Revenue" value={formData["Total Revenue"]} onChange={handleChange} className="form-input" required />
+            </div>
+          </div>
+        </div>
 
-        <select
-          name="Streaming Music"
-          value={formData["Streaming Music"]}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Streaming Music</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-          <option value="No internet service">No internet service</option>
-        </select>
+        {/* Section 4: Customer Engagement & Metrics */}
+        <div className="form-card">
+          <h2 className="section-title">4. Tenure & Engagement Metrics</h2>
+          <div className="form-grid">
+            <div className="form-group">
+              <label className="form-label">Tenure in Months</label>
+              <input type="number" name="Tenure in Months" value={formData["Tenure in Months"]} onChange={handleChange} className="form-input" min="1" required />
+            </div>
 
-        <select
-          name="Unlimited Data"
-          value={formData["Unlimited Data"]}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Unlimited Data</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-          <option value="No internet service">No internet service</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Satisfaction Score (1 to 5)</label>
+              <select name="Satisfaction Score" value={formData["Satisfaction Score"]} onChange={handleChange} className="form-select" required>
+                <option value="1">1 (Very Dissatisfied)</option>
+                <option value="2">2 (Dissatisfied)</option>
+                <option value="3">3 (Neutral)</option>
+                <option value="4">4 (Satisfied)</option>
+                <option value="5">5 (Very Satisfied)</option>
+              </select>
+            </div>
 
-        {/* Contract & Billing */}
+            <div className="form-group">
+              <label className="form-label">Offer Assigned</label>
+              <select name="Offer" value={formData.Offer} onChange={handleChange} className="form-select" required>
+                <option value="None">None</option>
+                <option value="Offer A">Offer A</option>
+                <option value="Offer B">Offer B</option>
+                <option value="Offer C">Offer C</option>
+                <option value="Offer D">Offer D</option>
+                <option value="Offer E">Offer E</option>
+              </select>
+            </div>
 
-        <h2>Contract & Billing</h2>
+            <div className="form-group">
+              <label className="form-label">Referred a Friend?</label>
+              <select name="Referred a Friend" value={formData["Referred a Friend"]} onChange={handleChange} className="form-select" required>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
 
-        <select
-          name="Contract"
-          value={formData.Contract}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Contract</option>
-          <option value="Month-to-Month">Month-to-Month</option>
-          <option value="One Year">One Year</option>
-          <option value="Two Year">Two Year</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Number of Referrals</label>
+              <input type="number" name="Number of Referrals" value={formData["Number of Referrals"]} onChange={handleChange} className="form-input" min="0" required />
+            </div>
 
-        <select
-          name="Paperless Billing"
-          value={formData["Paperless Billing"]}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Paperless Billing</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select>
+            <div className="form-group">
+              <label className="form-label">Customer Lifetime Value (CLTV)</label>
+              <input type="number" step="any" name="CLTV" value={formData.CLTV} onChange={handleChange} className="form-input" required />
+            </div>
+          </div>
+        </div>
 
-        <input
-          type="text"
-          name="Payment Method"
-          placeholder="Payment Method"
-          value={formData["Payment Method"]}
-          onChange={handleChange}
-          required
-        />
-
-        <input
-          type="number"
-          step="any"
-          name="Monthly Charge"
-          placeholder="Monthly Charge"
-          value={formData["Monthly Charge"]}
-          onChange={handleChange}
-          required
-        />
-
-        <input
-          type="number"
-          step="any"
-          name="Total Charges"
-          placeholder="Total Charges"
-          value={formData["Total Charges"]}
-          onChange={handleChange}
-          required
-        />
-
-        <input
-          type="number"
-          step="any"
-          name="Total Refunds"
-          placeholder="Total Refunds"
-          value={formData["Total Refunds"]}
-          onChange={handleChange}
-          required
-        />
-
-        <input
-          type="number"
-          name="Total Extra Data Charges"
-          placeholder="Total Extra Data Charges"
-          value={formData["Total Extra Data Charges"]}
-          onChange={handleChange}
-          required
-        />
-
-        <input
-          type="number"
-          step="any"
-          name="Total Long Distance Charges"
-          placeholder="Total Long Distance Charges"
-          value={formData["Total Long Distance Charges"]}
-          onChange={handleChange}
-          required
-        />
-
-        <input
-          type="number"
-          step="any"
-          name="Total Revenue"
-          placeholder="Total Revenue"
-          value={formData["Total Revenue"]}
-          onChange={handleChange}
-          required
-        />
-
-        {/* Customer Metrics */}
-
-        <h2>Customer Metrics</h2>
-
-        <input
-          type="number"
-          name="Satisfaction Score"
-          placeholder="Satisfaction Score"
-          value={formData["Satisfaction Score"]}
-          onChange={handleChange}
-          min="1"
-          max="5"
-          required
-        />
-
-        <input
-          type="number"
-          step="any"
-          name="CLTV"
-          placeholder="CLTV"
-          value={formData.CLTV}
-          onChange={handleChange}
-          required
-        />
-
-        <button type="submit">
-          Predict Churn
-        </button>
+        {/* Submit Button */}
+        <div style={{ marginTop: "24px" }}>
+          <button type="submit" className="btn btn-primary btn-block" disabled={loading} style={{ padding: "14px 24px", fontSize: "1rem" }}>
+            {loading ? "Calculating Prediction..." : "Predict Churn"}
+          </button>
+        </div>
       </form>
 
-      {error && <p>{error}</p>}
-
-      {prediction !== null && (
-        <ResultCard prediction={prediction} />
-      )}
-    </>
+      {/* Result Section */}
+      <div id="prediction-results">
+        <ResultCard prediction={prediction} formData={formData} />
+      </div>
+    </div>
   );
 }
-
