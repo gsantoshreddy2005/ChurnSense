@@ -33,7 +33,7 @@ def predict(customer: CustomerData):
 
     prediction = model.predict(input_data)[0]
 
-    probability = model.predict_proba(input_data)[0][1]
+    probability = model.predict_proba(input_data)[0][1] 
 
     return {
         "prediction": prediction,
